@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Podpis PDF</title>
+    <link rel="stylesheet" href="/../css/signer.css">
+</head>
+
+<body>
+    <a href="/" class="home-button" title="Strona główna">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/>
+        </svg>
+    </a>
+
+    <div id="status" class="status-bar status-wait">Oczekuje na połączenie...</div>
+    
+    <div class="container">
+        <div> 
+            <div id="connection-ui">
+                <div class="card">
+                    <h2>✍️ Połącz z Panelem Głównym</h2>
+                    <input type="number" id="session-code-input" placeholder="Wpisz kod" pattern="\d*">
+                    <button id="join-btn">Połącz</button>
+                </div>
+            </div>
+            <div id="signer-ui" style="display: none;">
+                <div class="card">
+                    <h2>Złóż podpisy</h2>
+                    <div class="signature-pads-container">
+                        <div class="signature-pad-wrapper">
+                            <label>Osoba zdająca:</label>
+                            <canvas id="signature-pad-1"></canvas>
+                            <button id="clear-sig-1" class="clear-btn">Wyczyść</button>
+                        </div>
+                        <div class="signature-pad-wrapper">
+                            <label>Osoba odbierająca:</label>
+                            <canvas id="signature-pad-2"></canvas>
+                            <button id="clear-sig-2" class="clear-btn">Wyczyść</button>
+                        </div>
+                    </div>
+                    <button id="send-btn">Wyślij Podpisy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="footer-screen">
+        Copyright &copy; 2025
+        <a href="https://helptech.pl/" target="_blank" rel="noopener noreferrer">
+            HelpTech
+            <img src="helptech-green-logo-with-black.png" alt="Logo HelpTech"/>
+        </a>
+    </footer>
+
+    <script>
+        let currentSessionCode;
+        const serverUrl = new URL('server.php', window.location.href).href;
+        
+        const statusDiv = document.getElementById('status'),
+              connectionUi = document.getElementById('connection-ui'),
+              signerUi = document.getElementById('signer-ui'),
+              joinBtn = document.getElementById('join-btn'),
+              codeInput = document.getElementById('session-code-input'),
+              sendBtn = document.getElementById('send-btn'),
+              canvas1 = document.getElementById('signature-pad-1'),
+              canvas2 = document.getElementById('signature-pad-2'),
+              clearSig1Btn = document.getElementById('clear-sig-1'),
+              clearSig2Btn = document.getElementById('clear-sig-2');
+
+        function setupCanvas(canvas) {
+            const ctx = canvas.getContext('2d');
+            let drawing = false;
+
+            function resizeCanvas() {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                ctx.strokeStyle = "#000000"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            function getPosition(e) {
+                const rect = canvas.getBoundingClientRect(); const touch = e.touches ? e.touches[0] : e;
+                return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+            }
+            function startDraw(e) { e.preventDefault(); drawing = true; const pos = getPosition(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); }
+            function draw(e) { if (!drawing) return; e.preventDefault(); const pos = getPosition(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); }
+            function endDraw(e) { e.preventDefault(); drawing = false; }
+
+            canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mouseout', endDraw);
+            canvas.addEventListener('touchstart', startDraw, { passive: false }); canvas.addEventListener('touchmove', draw, { passive: false });
+            canvas.addEventListener('touchend', endDraw);
+            
+            return {
+                clear: () => ctx.clearRect(0, 0, canvas.width, canvas.height),
+                isEmpty: () => !ctx.getImageData(0, 0, canvas.width, canvas.height).data.some(channel => channel !== 0)
+            };
+        }
+
+        let pad1, pad2;
+
+        joinBtn.addEventListener('click', async () => {
+            const code = codeInput.value.trim();
+            if (!code || !/^\d+$/.test(code)) {
+                alert('Wpisz poprawny, cyfrowy kod sesji.');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('action', 'join_session'); 
+                formData.append('session', code);
+
+                const response = await fetch(serverUrl, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Błąd serwera: ${response.status}`);
+                
+                const result = await response.json();
+
+                if (result.status === 'ok') {
+                    currentSessionCode = code; 
+                    statusDiv.textContent = '✅ Połączono! Złóż podpisy.';
+                    statusDiv.className = 'status-bar status-ok';
+                    connectionUi.style.display = 'none';
+                    signerUi.style.display = 'block';
+                    
+                    if (!pad1) pad1 = setupCanvas(canvas1);
+                    if (!pad2) pad2 = setupCanvas(canvas2);
+                } else {
+                    alert(result.message || 'Wystąpił nieznany błąd.');
+                    codeInput.select(); 
+                }
+            } catch (error) {
+                console.error("Błąd walidacji sesji:", error);
+                alert('Błąd sieci lub problem z serwerem. Spróbuj ponownie.');
+            }
+        });
+
+        clearSig1Btn.addEventListener('click', () => pad1.clear());
+        clearSig2Btn.addEventListener('click', () => pad2.clear());
+
+        sendBtn.addEventListener('click', async () => {
+            if (pad1.isEmpty() || pad2.isEmpty()) {
+                alert("Oba podpisy są wymagane.");
+                return;
+            }
+            const sig1Data = canvas1.toDataURL('image/png');
+            const sig2Data = canvas2.toDataURL('image/png');
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'save_signatures');
+                formData.append('session', currentSessionCode);
+                formData.append('signature1', sig1Data);
+                formData.append('signature2', sig2Data);
+
+                await fetch(serverUrl, { method: 'POST', body: formData });
+                
+                statusDiv.textContent = '👍 Podpisy wysłane! PDF generuje się na komputerze.';
+                signerUi.style.display = 'none';
+                setTimeout(() => {
+                    connectionUi.style.display = 'block';
+                    statusDiv.textContent = 'Oczekuje na połączenie...';
+                    statusDiv.className = 'status-bar status-wait';
+                    codeInput.value = ''; 
+                    pad1.clear();
+                    pad2.clear();
+                }, 3000);
+            } catch (error) {
+                alert('Błąd wysyłania podpisów.');
+            }
+        });
+    </script>
+</body>
+</html>

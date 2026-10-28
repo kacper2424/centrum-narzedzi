@@ -1,0 +1,93 @@
+        body {
+            font-family: -apple-system, sans-serif;
+            margin: 0;
+            background: #000;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        #qr-reader {
+            border: none;
+            width: 100%;
+            aspect-ratio: 1/1;
+        }
+
+        #qr-reader-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60vw;
+            height: 60vw;
+            max-width: 200px;
+            max-height: 200px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+            border: 3px solid red;
+        }
+
+        .status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .status-ok {
+            background: #28a745;
+        }
+
+        .status-wait {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .status-error {
+            background: #dc3545;
+        }
+
+        .connection-box {
+            background: #222;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        input {
+            font-size: 24px;
+            padding: 10px;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+
+        button {
+            font-size: 18px;
+            padding: 12px;
+            width: 100%;
+            border-radius: 5px;
+            border: none;
+            background: #007aff;
+            color: white;
+            cursor: pointer;
+        }
+
+        #stop-btn {
+            background-color: #dc3545;
+            margin-top: 20px;
+        }

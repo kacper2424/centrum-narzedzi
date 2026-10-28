@@ -1,0 +1,245 @@
+        :root {
+            --primary-color: #0071e3;
+            --primary-hover: #0077ed;
+            --danger-color: #d9363e;
+            --background-color: #f5f5f7;
+            --card-background: #ffffff;
+            --text-color: #1d1d1f;
+            --subtle-text-color: #6e6e73;
+            --border-color: #d2d2d7;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding-top: 70px;
+        }
+        
+        .home-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 44px;
+            height: 44px;
+            background-color: #e8e8ea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: background-color 0.2s, transform 0.2s;
+            z-index: 1000;
+        }
+
+        .home-button:hover {
+            background-color: #dcdce0;
+            transform: scale(1.05);
+        }
+
+        .home-button svg {
+            width: 24px;
+            height: 24px;
+            fill: #1d1d1f;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+            padding: 20px;
+            margin: auto;
+            flex-grow: 1; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-bar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            padding: 10px 20px;
+            border-radius: 980px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .status-ok {
+            background: #34c759;
+            color: white;
+        }
+
+        .status-wait {
+            background: #ffcc00;
+            color: #1d1d1f;
+        }
+
+        .status-error {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .card {
+            background: var(--card-background);
+            padding: 30px;
+            border-radius: 18px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            width: 100%;
+        }
+
+        .card h2 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+        }
+
+        input {
+            font-size: 2rem;
+            padding: 15px;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            letter-spacing: 5px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.2);
+        }
+
+        button {
+            font-size: 1rem;
+            font-weight: 500;
+            padding: 15px;
+            width: 100%;
+            border-radius: 980px;
+            border: none;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .signature-pads-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin: 20px 0;
+        }
+
+        .signature-pad-wrapper {
+            text-align: left;
+        }
+
+        .signature-pad-wrapper label {
+            font-weight: 500;
+            color: var(--subtle-text-color);
+        }
+
+        .signature-pad-wrapper canvas {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 100%;
+            height: 200px;
+            touch-action: none;
+            margin-top: 5px;
+        }
+
+        .signature-pad-wrapper .clear-btn {
+            width: auto;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            margin-top: 10px;
+            float: right;
+            background-color: transparent;
+            color: var(--primary-color);
+        }
+
+        #send-btn {
+            margin-top: 20px;
+        }
+        
+        .footer-screen {
+            width: 100%;
+            padding: 20px 0;
+            text-align: center;
+            font-size: 14px;
+            color: var(--subtle-text-color);
+            border-top: 1px solid var(--border-color);
+            background-color: var(--background-color);
+            margin-top: auto;
+        }
+
+        .footer-screen a {
+            color: var(--subtle-text-color);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .footer-screen a:hover {
+            color: var(--text-color);
+        }
+
+        .footer-screen img {
+            height: 22px;
+            margin-left: 8px;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding-top: 60px; 
+                -webkit-text-size-adjust: 100%; 
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .card {
+                padding: 20px 15px;
+            }
+
+            .card h2 {
+                font-size: 1.8rem;
+            }
+
+            input {
+                font-size: 1.5rem;
+                padding: 12px;
+            }
+
+            .status-bar {
+                padding: 8px 15px;
+                font-size: 0.9rem;
+            }
+
+            .signature-pads-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media print {
+            .home-button, .status-bar, .footer-screen {
+                display: none;
+            }
+        }
+

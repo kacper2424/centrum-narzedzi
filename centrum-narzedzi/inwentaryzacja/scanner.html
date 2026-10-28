@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skaner QR v2</title>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        
+        .connection-box { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 320px; }
+        input { font-size: 18px; padding: 10px; width: 100%; box-sizing: border-box; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; text-align: center; }
+        button { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; width: 100%; transition: background 0.2s; }
+        button:active { background: #0056b3; }
+        #stop-btn { background: #dc3545; margin-top: 20px; }
+        
+        #scanner-ui { width: 100%; max-width: 500px; display: none; }
+        #qr-reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+        
+        .status-bar { padding: 15px; text-align: center; font-weight: bold; color: white; width: 100%; box-sizing: border-box; }
+        .status-wait { background: #6c757d; }
+        .status-ok { background: #28a745; }
+        .status-error { background: #dc3545; }
+
+        @keyframes flash-animation {
+            0% { background-color: rgba(255, 255, 255, 0); }
+            50% { background-color: rgba(40, 167, 69, 0.5); }
+            100% { background-color: rgba(255, 255, 255, 0); }
+        }
+        .scan-flash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 9999;
+            animation: flash-animation 0.3s ease-out;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="status" class="status-bar status-wait">Oczekuje na połączenie...</div>
+    
+    <div class="container">
+        <div id="connection-ui">
+            <div class="connection-box">
+                <h2>Inwentaryzacja</h2>
+                <p style="color:#666; font-size: 0.9em;">Wpisz kod sesji z komputera</p>
+                <input type="number" inputmode="numeric" id="session-code-input" placeholder="Np. 1234">
+                <button id="join-btn">Połącz i Skanuj</button>
+            </div>
+        </div>
+
+        <div id="scanner-ui">
+            <div id="qr-reader"></div>
+            <div style="text-align: center; margin-top: 10px; color: #555; font-size: 14px;">Skieruj kamerę na kod</div>
+            <button id="stop-btn">Zakończ</button>
+        </div>
+    </div>
+    
+    <div id="flash-overlay"></div>
+
+    <script>
+        let html5QrCode = null;
+        let lastScanInfo = { code: null, time: 0 };
+        const SCAN_COOLDOWN_MS = 1500; // Zwiększony czas
+        let currentSessionCode = null;
+        const serverUrl = new URL('server.php', window.location.href).href;
+
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    audioCtx = new AudioContext();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBeep() {
+            if (!audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'square'; 
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.15);
+        }
+
+        function triggerVisualFeedback() {
+            const overlay = document.getElementById('flash-overlay');
+            overlay.className = 'scan-flash';
+            setTimeout(() => { overlay.className = ''; }, 300);
+            
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        const statusDiv = document.getElementById('status');
+        const connectionUi = document.getElementById('connection-ui');
+        const scannerUi = document.getElementById('scanner-ui');
+        const joinBtn = document.getElementById('join-btn');
+        const codeInput = document.getElementById('session-code-input');
+        const stopBtn = document.getElementById('stop-btn');
+
+        joinBtn.addEventListener('click', async () => {
+            initAudio(); 
+
+            const code = codeInput.value.trim();
+            if (!code || !/^\d+$/.test(code)) {
+                alert('Wpisz poprawny, cyfrowy kod sesji.');
+                return;
+            }
+
+            joinBtn.textContent = 'Łączenie...';
+            joinBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'join_session');
+                formData.append('session', code);
+                
+                const response = await fetch(serverUrl, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Błąd: ${response.status}`);
+               
+
+                currentSessionCode = code;
+                statusDiv.textContent = '✅ Gotowy do skanowania';
+                statusDiv.className = 'status-bar status-ok';
+                
+                connectionUi.style.display = 'none';
+                scannerUi.style.display = 'block';
+                
+                startScanner();
+
+            } catch (error) {
+                console.error(error);
+                alert('Błąd połączenia: ' + error.message);
+                statusDiv.textContent = 'Błąd połączenia';
+                statusDiv.className = 'status-bar status-error';
+            } finally {
+                joinBtn.textContent = 'Połącz i Skanuj';
+                joinBtn.disabled = false;
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop();
+                html5QrCode.clear();
+            }
+            scannerUi.style.display = 'none';
+            connectionUi.style.display = 'block';
+            statusDiv.textContent = 'Oczekuje na połączenie...';
+            statusDiv.className = 'status-bar status-wait';
+        });
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            const currentTime = Date.now();
+            if (lastScanInfo.code === decodedText && (currentTime - lastScanInfo.time) < SCAN_COOLDOWN_MS) {
+                return; 
+            }
+            lastScanInfo = { code: decodedText, time: currentTime };
+
+            playBeep();
+            triggerVisualFeedback();
+            
+            statusDiv.textContent = `📦 Wysłano: ${decodedText}`;
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'save_scan');
+                formData.append('session', currentSessionCode);
+                formData.append('code', decodedText);
+                
+                fetch(serverUrl, { method: 'POST', body: formData }).catch(e => console.error(e));
+                
+            } catch (error) {
+                console.error("Błąd wysyłania:", error);
+            }
+        }
+
+       function startScanner() {
+            if (!html5QrCode) {
+                 html5QrCode = new Html5Qrcode("qr-reader");
+            }
+
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 150, height: 150 },
+                aspectRatio: 1.0
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config,
+                onScanSuccess,
+                (errorMessage) => {
+                }
+            ).catch(err => {
+                console.error("Szczegóły błędu:", err);
+                
+                let msg = 'Błąd kamery. ';
+                if (err.name === 'NotAllowedError') {
+                    msg += 'Brak uprawnień. Sprawdź ustawienia strony (kłódka w pasku adresu).';
+                } else if (err.name === 'NotFoundError') {
+                    msg += 'Nie znaleziono kamery.';
+                } else if (err.name === 'NotReadableError') {
+                    msg += 'Kamera jest zajęta przez inną aplikację.';
+                } else if (err.name === 'OverconstrainedError') {
+                    msg += 'Kamera nie spełnia wymagań technicznych.';
+                } else if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                     msg += 'WYMAGANE HTTPS! Kamera nie działa na http:// (chyba że localhost).';
+                } else {
+                    msg += err;
+                }
+                
+                statusDiv.textContent = msg;
+                statusDiv.className = 'status-bar status-error';
+            });
+        }
+    </script>
+</body>
+</html>

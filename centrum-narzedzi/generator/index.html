@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Etykiet Produktowych</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .main-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        header h1 {
+            text-align: center; color: #333; margin-top: 0;
+        }
+        .input-group {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+        #upc-input {
+            flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px;
+        }
+        .button-group button {
+            padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;
+        }
+        #print-button { background-color: #007bff; color: white; }
+        #clear-button { background-color: #dc3545; color: white; }
+        
+        #labels-container {
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            display: flex;      
+            flex-wrap: wrap;   
+            gap: 10px;          
+        }
+
+        .label {
+            width: 55mm;
+            height: 25mm;
+            border: 1px dashed #999;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-container">
+        <header>
+            <h1>🏷️ Generator Etykiet</h1>
+        </header>
+        <div class="input-group">
+            <input type="text" id="upc-input" placeholder="Zeskanuj lub wpisz kod UPC i naciśnij Enter...">
+            <div class="button-group">
+                <button id="print-button">Drukuj</button>
+                <button id="clear-button">Wyczyść</button>
+            </div>
+        </div>
+        <div id="labels-container"></div>
+    </div>
+   
+    <script>
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const upcInput = document.getElementById('upc-input');
+            const printButton = document.getElementById('print-button');
+            const clearButton = document.getElementById('clear-button');
+            const labelsContainer = document.getElementById('labels-container');
+            let database = [];
+
+            fetch('dane.csv')
+                .then(response => {
+                    if (!response.ok) throw new Error("Błąd sieci lub nie znaleziono pliku dane.csv");
+                    return response.text();
+                })
+                .then(csvText => {
+                    const cleanText = csvText.trim().replace(/^\uFEFF/, '');
+                    database = cleanText.split(/\r?\n/).map(row => row.split(';')).filter(row => row.length >= 4 && row[0]?.trim()).map(row => ({
+                        upc: row[0].trim(), appleCode: row[1].trim(), productName: row[2].trim(), params: row[3].trim()
+                    }));
+                    if (database.length === 0) alert('Nie udało się wczytać produktów. Sprawdź plik "dane.csv".');
+                    upcInput.focus();
+                })
+                .catch(error => {
+                    console.error('Błąd wczytywania pliku CSV:', error);
+                    alert('Krytyczny błąd ładowania pliku dane.csv. Sprawdź konsolę (F12).');
+                });
+
+            const getShortAppleCode = (fullCode) => {
+                if (!fullCode) return '';
+                const parts = fullCode.split('/');
+                return parts.length >= 3 ? parts.slice(0, 2).join('/') : fullCode;
+            };
+
+            const generateLabel = (scannedUpc) => {
+                const product = database.find(p => p.upc === scannedUpc);
+                if (product) {
+                    const labelDiv = document.createElement('div');
+                    labelDiv.className = 'label';
+
+                    labelDiv.dataset.appleCode = getShortAppleCode(product.appleCode);
+                    labelDiv.dataset.productName = product.productName || '';
+                    labelDiv.dataset.params = product.params || '';
+                    
+                    const tempQrElement = document.createElement('div');
+                    new QRCode(tempQrElement, { text: product.appleCode || 'Brak kodu', width: 80, height: 80, correctLevel: QRCode.CorrectLevel.H });
+                    const canvas = tempQrElement.querySelector('canvas');
+                    if(canvas) {
+                        labelDiv.dataset.qrSrc = canvas.toDataURL('image/png');
+                    }
+                    
+                   
+
+                    const mainDiv = document.createElement('div');
+                    mainDiv.style.cssText = "padding: 2mm; box-sizing: border-box; width: 100%; height:100%; display:flex; justify-content: space-between; align-items: center;";
+
+                    const textContainer = document.createElement('div');
+                    textContainer.style.maxWidth = "30mm";
+
+                    const appleCodeDiv = document.createElement('div');
+                    appleCodeDiv.style.cssText = "font-weight: bold; font-size:10pt;";
+                    appleCodeDiv.textContent = labelDiv.dataset.appleCode; 
+
+                    const productNameDiv = document.createElement('div');
+                    productNameDiv.style.cssText = "font-size:8pt; margin: 2px 0;";
+                    productNameDiv.textContent = labelDiv.dataset.productName; 
+
+                    const paramsDiv = document.createElement('div');
+                    paramsDiv.style.cssText = "font-size:7pt;";
+                    paramsDiv.textContent = labelDiv.dataset.params;
+
+                    const qrImg = document.createElement('img');
+                    qrImg.src = labelDiv.dataset.qrSrc;
+                    qrImg.style.cssText = "width:21mm; height:21mm;";
+
+                    textContainer.appendChild(appleCodeDiv);
+                    textContainer.appendChild(productNameDiv);
+                    textContainer.appendChild(paramsDiv);
+
+                    mainDiv.appendChild(textContainer);
+                    mainDiv.appendChild(qrImg);
+
+                    labelDiv.appendChild(mainDiv); 
+                    
+                    
+                    labelsContainer.appendChild(labelDiv);
+                } else {
+                    alert(`Produkt o kodzie UPC "${scannedUpc}" nie został znaleziony.\n\nW celu dodania go do bazy proszę napisać maila na adres: kacper.niedzielski@ispot.pl`);
+                }
+                upcInput.value = '';
+                upcInput.focus();
+            };
+
+            upcInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    const upc = upcInput.value.trim();
+                    if (upc) generateLabel(upc);
+                }
+            });
+            
+            clearButton.addEventListener('click', () => {
+                labelsContainer.innerHTML = '';
+                upcInput.focus();
+            });
+
+            printButton.addEventListener('click', () => {
+                const labels = labelsContainer.querySelectorAll('.label');
+                if (labels.length === 0) {
+                    alert('Dodaj przynajmniej jedną etykietę, aby drukować.');
+                    return;
+                }
+
+                let printHTML = '';
+                labels.forEach(label => {
+                    const appleCode = label.dataset.appleCode;
+                    const productName = label.dataset.productName;
+                    const params = label.dataset.params;
+                    const qrSrc = label.dataset.qrSrc;
+
+                    printHTML += `
+                        <div class="label">
+                            <div class="info">
+                                <p class="apple-code">${appleCode}</p>
+                                <p class="product-name">${productName}</p>
+                                <p class="params">${params}</p>
+                            </div>
+                            <div class="qr">
+                                <img src="${qrSrc}" />
+                            </div>
+                        </div>
+                    `;
+                });
+
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                const printDoc = iframe.contentWindow.document;
+                printDoc.open();
+                printDoc.write(`
+                    <html>
+                        <head>
+                            <title>Wydruk Etykiet</title>
+                            <style>
+                                body { margin: 0; font-family: Arial, sans-serif; }
+                                @page {
+                                    size: 55mm 25mm;
+                                    margin: 0;
+                                }
+                                .label {
+                                    width: 55mm;
+                                    height: 25mm;
+                                    box-sizing: border-box;
+                                    padding: 2mm;
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
+                                    overflow: hidden;
+                                    page-break-after: always;
+                                }
+                                .info {
+                                    flex-grow: 1;
+                                    padding-right: 2mm;
+                                    max-width: 30mm;
+                                }
+                                .qr {
+                                    flex-shrink: 0;
+                                    width: 21mm;
+                                    height: 21mm;
+                                }
+                                .qr img {
+                                    width: 100%;
+                                    height: 100%;
+                                }
+                                p {
+                                    margin: 0;
+                                    padding: 0;
+                                    color: #000;
+                                    white-space: normal;
+                                    word-wrap: break-word; 
+                                }
+                                .apple-code { font-size: 10pt; font-weight: bold; margin-bottom: 1.5mm; }
+                                .product-name { font-size: 8pt; margin-bottom: 1.5mm; line-height: 1.1; }
+                                .params { font-size: 7pt; line-height: 1.1; }
+                            </style>
+                        </head>
+                        <body>
+                            ${printHTML}
+                        </body>
+                    </html>
+                `);
+                printDoc.close();
+
+                setTimeout(() => {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                    document.body.removeChild(iframe);
+                }, 300);
+            });
+        });
+    </script>
+</body>
+</html>
